@@ -113,33 +113,27 @@ try:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        if "last_category" not in st.session_state:
-            st.session_state.last_category = "-- Pilih Kategori --"
-
+        # 1. Pilihan Kategori Produk
         kategori_keys = list(data_dict.keys())
         non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
         kategori_options = ["-- Pilih Kategori --", "Kabel"] + non_cable_cats
         
         pilih_kategori = st.sidebar.selectbox(
-            "Pilih Kategori Produk:", kategori_options, key="widget_kategori"
+            "Pilih Kategori Produk:", kategori_options
         )
 
+        # 2. Kotak Pencarian Bebas (Global Search)
         search_query = st.sidebar.text_input(
-            "Atau Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", key="widget_search"
+            "Atau Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", ""
         )
 
-        # Jika user mengganti kategori, reset kotak pencarian bebas secara bersih
-        if pilih_kategori != st.session_state.last_category:
-            st.session_state.last_category = pilih_kategori
-            if pilih_kategori != "-- Pilih Kategori --" and search_query.strip():
-                st.session_state.widget_search = ""
-                search_query = ""
-
+        # Inisialisasi Data Aktif secara Progresif
         df_active = pd.DataFrame()
         filter_applied = False
 
-        # Logika Filter Utama yang Fleksibel
+        # --- LOGIKA FILTER PROGRESIF & FLEKSIBEL ---
         if search_query.strip():
+            # Jika user mengetik di search bar, gunakan seluruh master data
             filter_applied = True
             df_active = df_all_master.copy()
             
@@ -153,13 +147,14 @@ try:
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
         elif pilih_kategori != "-- Pilih Kategori --":
+            # Jika user memilih kategori via dropdown
             filter_applied = True
             if pilih_kategori == "Kabel":
                 df_active = df_cable_combined.copy()
             else:
                 df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
-            # Filter Sub-Kategori / Breakdown di Sidebar
+            # Sub-Kategori / Breakdown untuk Kabel
             if pilih_kategori == "Kabel":
                 if "Tipe Kabel" in df_active.columns:
                     tipe_list = ["Semua Spesifikasi"] + list(
@@ -199,6 +194,7 @@ try:
                         df_active = df_active[df_active["Jenis Kabel"] == pilih_jenis]
 
             else:
+                # Sub-Kategori / Breakdown untuk Non-Kabel (Inverter, Solar PV, dll)
                 if "Brand" in df_active.columns:
                     brand_list = ["Semua Brand"] + list(
                         df_active["Brand"].dropna().unique()
