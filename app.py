@@ -13,9 +13,9 @@ st.write(
 )
 
 
-# Fungsi untuk mengambil data dari semua sheet secara dinamis
+# Fungsi untuk mengambil data dari semua sheet secara terpisah ke dalam dictionary
 @st.cache_data(ttl=60)
-def load_all_sheets():
+def load_all_sheets_dict():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
 
     sheet_names = [
@@ -27,7 +27,7 @@ def load_all_sheets():
         "Solar PV",
         "Mounting PV",
     ]
-    all_data = []
+    data_dict = {}
 
     for sheet in sheet_names:
         try:
@@ -60,71 +60,80 @@ def load_all_sheets():
                 kategori_nama = sheet  # Inverter, Solar PV, Mounting PV
 
             df_temp.insert(0, "Kategori Produk", kategori_nama)
-            all_data.append(df_temp)
+            
+            # Simpan per sheet ke dictionary
+            data_dict[sheet] = df_temp
         except Exception as e:
             print(f"Gagal memuat sheet '{sheet}': {e}")
 
-    if all_data:
-        df_combined = pd.concat(all_data, ignore_index=True)
-        return df_combined
-    else:
-        return pd.DataFrame()
+    return data_dict
 
 
 try:
-    df = load_all_sheets()
+    data_dict = load_all_sheets_dict()
 
-    if df.empty:
+    if not data_dict:
         st.warning("⚠️ Belum ada data yang berhasil dimuat.")
     else:
+        # Gabungkan semua data untuk list dropdown filter
+        all_dfs = list(data_dict.values())
+        df_combined = pd.concat(all_dfs, ignore_index=True)
+
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
         # 1. Filter Kategori Produk Utama
-        if "Kategori Produk" in df.columns:
-            kategori_list = ["Semua Kategori"] + list(
-                df["Kategori Produk"].dropna().unique()
-            )
-            pilih_kategori = st.sidebar.selectbox(
-                "Pilih Kategori Produk:", kategori_list
-            )
-            if pilih_kategori != "Semua Kategori":
-                df = df[df["Kategori Produk"] == pilih_kategori]
+        kategori_list = ["Semua Kategori"] + list(
+            df_combined["Kategori Produk"].dropna().unique()
+        )
+        pilih_kategori = st.sidebar.selectbox(
+            "Pilih Kategori Produk:", kategori_list
+        )
 
-        # 2. Filter Sub-Kategori berdasarkan pilihan
+        # Tentukan dataframe aktif berdasarkan pilihan kategori
+        if pilih_kategori == "Semua Kategori":
+            df_active = df_combined.copy()
+        elif pilih_kategori == "Kabel":
+            cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
+            df_active = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True)
+        else:
+            # Untuk Inverter, Solar PV, Mounting PV
+            df_active = data_dict.get(pilih_kategori, pd.DataFrame())
+
+        # 2. Filter Sub-Kategori / Brand
         if pilih_kategori == "Kabel":
-            if "Tipe Kabel" in df.columns:
+            if "Tipe Kabel" in df_active.columns:
                 tipe_list = ["Semua Spesifikasi"] + list(
-                    df["Tipe Kabel"].dropna().unique()
+                    df_active["Tipe Kabel"].dropna().unique()
                 )
                 pilih_tipe = st.sidebar.selectbox(
                     "Pilih Spesifikasi Kabel:", tipe_list
                 )
                 if pilih_tipe != "Semua Spesifikasi":
-                    df = df[df["Tipe Kabel"] == pilih_tipe]
+                    df_active = df_active[df_active["Tipe Kabel"] == pilih_tipe]
 
-            if "Jenis Kabel" in df.columns:
+            if "Jenis Kabel" in df_active.columns:
                 jenis_list = ["Semua Jenis"] + list(
-                    df["Jenis Kabel"].dropna().unique()
+                    df_active["Jenis Kabel"].dropna().unique()
                 )
                 pilih_jenis = st.sidebar.selectbox(
                     "Pilih Jenis Kabel:", jenis_list
                 )
                 if pilih_jenis != "Semua Jenis":
-                    df = df[df["Jenis Kabel"] == pilih_jenis]
+                    df_active = df_active[df_active["Jenis Kabel"] == pilih_jenis]
 
         elif pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
-            if "Brand" in df.columns:
+            if "Brand" in df_active.columns:
                 brand_list = ["Semua Brand"] + list(
-                    df["Brand"].dropna().unique()
+                    df_active["Brand"].dropna().unique()
                 )
                 pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
                 if pilih_brand != "Semua Brand":
-                    df = df[df["Brand"] == pilih_brand]
+                    df_active = df_active[df_active["Brand"] == pilih_brand]
 
         # 3. Filter Pencarian Bebas
         search_query = st.sidebar.text_input(
-            "Cari Ukuran / Tipe / Spesifikasi:", ""
+            "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
         )
         if search_query:
             clean_query = search_query.lower().replace(" ", "")
@@ -133,25 +142,20 @@ try:
                 row_str = "".join(row.astype(str)).lower().replace(" ", "")
                 return clean_query in row_str
 
-            df = df[df.apply(match_row, axis=1)]
+            df_active = df_active[df_active.apply(match_row, axis=1)]
 
-        # --- PENYESUAIAN TAMPILAN TABEL ---
-        # Hapus kolom "Kategori Produk" dari tampilan tabel agar lebih bersih
-        if "Kategori Produk" in df.columns:
-            df_display = df.drop(columns=["Kategori Produk"])
+        # --- BERSIHKAN KOLOM TAMPILAN ---
+        # Hapus kolom "Kategori Produk" agar tidak berulang
+        if "Kategori Produk" in df_active.columns:
+            df_display = df_active.drop(columns=["Kategori Produk"])
         else:
-            df_display = df.copy()
+            df_display = df_active.copy()
 
-        # Jika kategori yang dipilih adalah Inverter, Solar PV, atau Mounting PV, susun ulang kolomnya
-        if pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
-            # Pastikan kolom yang diinginkan ada di dataframe
-            desired_cols = [col for col in ["Kategori", "Brand", "Spesifikasi", "Kapasitas", "Harga"] if col in df_display.columns]
-            if desired_cols:
-                # Jika ada kolom lain yang tersisa, gabungkan
-                other_cols = [c for c in df_display.columns if c not in desired_cols]
-                df_display = df_display[desired_cols + other_cols]
+        # Buang kolom yang seluruh isinya kosong atau bernilai NaN / 'None'
+        df_display = df_display.dropna(how="all", axis=1)
+        df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN"]).all()]
 
-        # Menampilkan informasi jumlah data dan tabel interaktif yang bersih
+        # Menampilkan informasi jumlah data dan tabel interaktif yang bersih tanpa kolom kosong
         st.info(f"Menampilkan {len(df_display)} data produk.")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
