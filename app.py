@@ -1,3 +1,4 @@
+import io
 import pandas as pd
 import streamlit as st
 
@@ -8,40 +9,42 @@ st.set_page_config(
 
 st.title("⚡ Cek Harga Pricelist Produk & Kabel")
 st.write(
-    "Data harga di bawah ini diambil secara real-time dan otomatis dari Google Spreadsheet."
+    "Data harga diambil secara real-time dari database SharePoint perusahaan."
 )
 
 
-# Fungsi untuk mengambil dan menggabungkan semua sheet kategori produk
+# Fungsi untuk membaca file Excel dari SharePoint / Link Web
 @st.cache_data(ttl=60)
-def load_all_sheets():
-    spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
+def load_excel_from_sharepoint():
+    # Masukkan link SharePoint Anda di sini
+    # Tips: Ubah parameter di ujung link SharePoint dari '&action=default' menjadi '&download=1'
+    sharepoint_url = "https://abirama.sharepoint.com/:x:/r/sites/AbiramaPrinsipaIndonesiaPT/_layouts/15/Doc.aspx?sourcedoc=%7B9562FF9F-78D1-49EF-9E16-E3581F956F10%7D&file=Database%20Pricelist.xlsx&action=default&mobileredirect=true"
 
-    # Masukkan SEMUA nama sheet/tab yang ada di spreadsheet Anda di sini
-    sheet_names = ["NYM", "NYY", "NYA", "Inverter", "Solar PV", "Mounting PV"]
+    # Mengubah link agar mendownload file Excel secara langsung
+    download_url = sharepoint_url.replace("action=default", "download=1")
+
+    # Membaca semua sheet yang ada di dalam file Excel secara otomatis
+    excel_file = pd.ExcelFile(download_url)
+    sheet_names = excel_file.sheet_names
 
     all_data = []
 
     for sheet in sheet_names:
-        try:
-            url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={sheet}"
-            df_temp = pd.read_csv(url)
+        df_temp = pd.read_excel(excel_file, sheet_name=sheet)
 
-            # Buang kolom yang tidak bernama / Unnamed
-            df_temp = df_temp.loc[
-                :, ~df_temp.columns.str.contains("^Unnamed")
-            ]
+        # Buang kolom yang tidak bernama / Unnamed
+        df_temp = df_temp.loc[:, ~df_temp.columns.str.contains("^Unnamed")]
 
-            # Pastikan kolom Kategori/Jenis Produk terisi dari nama sheet jika belum ada
-            if "Kategori" not in df_temp.columns and "Jenis Kabel" not in df_temp.columns:
-                df_temp.insert(0, "Kategori Produk", sheet)
-            elif "Jenis Kabel" in df_temp.columns:
-                df_temp = df_temp.rename(columns={"Jenis Kabel": "Tipe/Model"})
-                df_temp.insert(0, "Kategori Produk", sheet)
+        # Tentukan Kategori Produk berdasarkan nama sheet
+        if sheet.lower() in ["nym", "nyy", "nya", "aluminium", "kabel"]:
+            kategori_nama = "Kabel"
+        else:
+            kategori_nama = sheet  # Untuk Inverter, Solar PV, Mounting PV, dll.
 
-            all_data.append(df_temp)
-        except Exception as e:
-            print(f"Sheet {sheet} tidak ditemukan atau kosong: {e}")
+        # Tambahkan kolom Kategori di posisi paling depan
+        df_temp.insert(0, "Kategori Produk", kategori_nama)
+
+        all_data.append(df_temp)
 
     if all_data:
         df_combined = pd.concat(all_data, ignore_index=True)
@@ -52,12 +55,12 @@ def load_all_sheets():
 
 
 try:
-    df = load_all_sheets()
+    df = load_excel_from_sharepoint()
 
-    # Sidebar Filter Pencarian
+    # Sidebar Filter Kategori & Pencarian
     st.sidebar.header("🔍 Filter Kategori & Produk")
 
-    # Dropdown Filter Kategori Produk (Inverter, Solar PV, Mounting, Kabel, dll.)
+    # Dropdown Pilihan Kategori Produk
     if "Kategori Produk" in df.columns:
         kategori_list = ["Semua Kategori"] + list(
             df["Kategori Produk"].dropna().unique()
@@ -68,9 +71,9 @@ try:
         if pilih_kategori != "Semua Kategori":
             df = df[df["Kategori Produk"] == pilih_kategori]
 
-    # Filter Pencarian Bebas (Nama / Model / Ukuran / Spesifikasi)
+    # Filter Pencarian Fleksibel
     search_query = st.sidebar.text_input(
-        "Cari Tipe / Spesifikasi / Ukuran:", ""
+        "Cari Ukuran / Tipe / Spesifikasi:", ""
     )
     if search_query:
         clean_query = search_query.lower().replace(" ", "")
@@ -81,7 +84,7 @@ try:
 
         df = df[df.apply(match_row, axis=1)]
 
-    # Menampilkan informasi jumlah data dan tabel interaktif
+    # Menampilkan informasi jumlah data dan tabel
     st.info(f"Menampilkan {len(df)} data produk.")
     st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -91,4 +94,6 @@ try:
         st.rerun()
 
 except Exception as e:
-    st.error(f"Gagal memuat data. Error: {e}")
+    st.error(
+        f"Gagal memuat data dari SharePoint. Pastikan link dapat diakses publik/organisasi dan file berformat Excel (.xlsx). Error: {e}"
+    )
