@@ -3,7 +3,7 @@ import streamlit as st
 
 # Konfigurasi Tampilan Web
 st.set_page_config(
-    page_title="Pricelist Produk & Kabel", page_icon="⚡", layout="wide"
+    page_title="Pricelist Produk & Material", page_icon="⚡", layout="wide"
 )
 
 st.title("⚡ Cek Harga Pricelist Produk & Material")
@@ -12,12 +12,12 @@ st.write(
 )
 
 
-# Fungsi untuk mengambil data dari semua sheet secara dinamis
+# Fungsi untuk mengambil data dari semua sheet secara otomatis
 @st.cache_data(ttl=60)
 def load_all_sheets():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
 
-    # Daftar tab/sheet sesuai dengan Google Spreadsheet Anda
+    # Daftar nama tab yang ingin dibaca (pastikan sama persis dengan di Google Spreadsheet Anda)
     sheet_names = [
         "LV Cable (CU)",
         "LV Cable (AL)",
@@ -42,16 +42,17 @@ def load_all_sheets():
             if df_temp.empty:
                 continue
 
-            # Bersihkan baris yang tidak memiliki harga atau ukuran (untuk membuang baris teks seperti "SINGLE CORE")
+            # Bersihkan baris teks header section seperti "SINGLE CORE", "2 CORE", dll.
             if "Ukuran" in df_temp.columns:
                 df_temp = df_temp.dropna(subset=["Ukuran"])
-                # Ubah kolom ukuran menjadi string agar aman
                 df_temp["Ukuran"] = df_temp["Ukuran"].astype(str)
-                # Buang baris yang isinya kata-kata header section seperti "CORE"
-                df_temp = df_temp[~df_temp["Ukuran"].str.contains("CORE|Core|core", case=False, na=False)]
+                df_temp = df_temp[
+                    ~df_temp["Ukuran"].str.contains("CORE|Core|core", case=False, na=False)
+                ]
 
-            # Tentukan Kategori Utama berdasarkan nama sheet
-            if "Cable" in sheet or "Kabel" in sheet:
+            # Tentukan Kategori Utama berdasarkan nama tab
+            sheet_lower = sheet.lower()
+            if "cable" in sheet_lower or "kabel" in sheet_lower:
                 kategori_nama = "Kabel"
                 df_temp.insert(0, "Tipe Kabel", sheet)
             else:
@@ -62,7 +63,8 @@ def load_all_sheets():
 
             all_data.append(df_temp)
         except Exception as e:
-            print(f"Gagal memuat sheet {sheet}: {e}")
+            # Cetak error ke console untuk debugging jika ada tab yang gagal
+            print(f"Catatan: Gagal memuat sheet '{sheet}': {e}")
 
     if all_data:
         df_combined = pd.concat(all_data, ignore_index=True)
@@ -75,12 +77,14 @@ try:
     df = load_all_sheets()
 
     if df.empty:
-        st.warning("⚠️ Belum ada data yang berhasil dimuat. Periksa kembali nama tab di Google Spreadsheet.")
+        st.warning(
+            "⚠️ Belum ada data yang berhasil dimuat. Pastikan nama tab di Google Spreadsheet Anda sudah sesuai."
+        )
     else:
-        # Sidebar Filter
+        # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # 1. Filter Kategori Produk Utama
+        # 1. Filter Kategori Produk Utama (Otomatis mendeteksi semua kategori unik dari data)
         if "Kategori Produk" in df.columns:
             kategori_list = ["Semua Kategori"] + list(
                 df["Kategori Produk"].dropna().unique()
@@ -91,30 +95,30 @@ try:
             if pilih_kategori != "Semua Kategori":
                 df = df[df["Kategori Produk"] == pilih_kategori]
 
-        # 2. Jika Kategori adalah Kabel, tampilkan sub-filter berdasarkan Tipe Kabel (LV/MV & CU/AL) & Jenis Kabel
-        if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
+        # 2. Jika Kategori adalah KABEL, tampilkan sub-filter Spesifikasi Kabel & Jenis Kabel
+        if pilih_kategori == "Kabel":
             if "Tipe Kabel" in df.columns:
-                tipe_kabel_list = ["Semua"] + list(
+                tipe_list = ["Semua Spesifikasi"] + list(
                     df["Tipe Kabel"].dropna().unique()
                 )
-                pilih_tipe_kabel = st.sidebar.selectbox(
-                    "Pilih Spesifikasi Kabel:", tipe_kabel_list
+                pilih_tipe = st.sidebar.selectbox(
+                    "Pilih Spesifikasi Kabel:", tipe_list
                 )
-                if pilih_tipe_kabel != "Semua":
-                    df = df[df["Tipe Kabel"] == pilih_tipe_kabel]
+                if pilih_tipe != "Semua Spesifikasi":
+                    df = df[df["Tipe Kabel"] == pilih_tipe]
 
             if "Jenis Kabel" in df.columns:
-                jenis_kabel_list = ["Semua"] + list(
+                jenis_list = ["Semua Jenis"] + list(
                     df["Jenis Kabel"].dropna().unique()
                 )
-                pilih_jenis_kabel = st.sidebar.selectbox(
-                    "Pilih Jenis Kabel (NYM/NYY/dll):", jenis_kabel_list
+                pilih_jenis = st.sidebar.selectbox(
+                    "Pilih Jenis Kabel:", jenis_list
                 )
-                if pilih_jenis_kabel != "Semua":
-                    df = df[df["Jenis Kabel"] == pilih_jenis_kabel]
+                if pilih_jenis != "Semua Jenis":
+                    df = df[df["Jenis Kabel"] == pilih_jenis]
 
         # 3. Jika Kategori adalah Inverter / Solar PV / Mounting PV, tampilkan filter Brand
-        if pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
+        elif pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
             if "Brand" in df.columns:
                 brand_list = ["Semua Brand"] + list(
                     df["Brand"].dropna().unique()
@@ -122,8 +126,16 @@ try:
                 pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
                 if pilih_brand != "Semua Brand":
                     df = df[df["Brand"] == pilih_brand]
+        
+        # Jika memilih "Semua Kategori", tampilkan opsi tambahan jika diperlukan
+        elif pilih_kategori == "Semua Kategori":
+            if "Brand" in df.columns and st.sidebar.checkbox("Filter Berdasarkan Brand"):
+                brand_list = ["Semua Brand"] + list(df["Brand"].dropna().unique())
+                pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
+                if pilih_brand != "Semua Brand":
+                    df = df[df["Brand"] == pilih_brand]
 
-        # 4. Filter Pencarian Bebas
+        # 4. Filter Pencarian Bebas (Ukuran / Tipe / Spesifikasi)
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi:", ""
         )
@@ -146,4 +158,4 @@ try:
         st.rerun()
 
 except Exception as e:
-    st.error(f"Gagal memuat data. Error: {e}")
+    st.error(f"Terjadi kesalahan saat memuat data: {e}")
