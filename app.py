@@ -107,18 +107,13 @@ try:
         cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
         df_cable_combined = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True) if cable_sheets else pd.DataFrame()
 
-        # Gabungkan seluruh data untuk pencarian global yang fleksibel
         df_all_master = pd.concat(list(data_dict.values()), ignore_index=True)
         df_all_master.columns = df_all_master.columns.str.strip()
 
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # 1. Kotak Pencarian Bebas Terlebih Dahulu (Agar fleksibel global)
-        search_query = st.sidebar.text_input(
-            "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
-        )
-
+        # 1. Pilihan Kategori Produk di Atas
         kategori_keys = list(data_dict.keys())
         non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
         kategori_options = ["-- Pilih Kategori --", "Kabel"] + non_cable_cats
@@ -130,7 +125,12 @@ try:
         df_active = pd.DataFrame()
         filter_applied = False
 
-        # Logika Fleksibel: Jika user mengetik pencarian bebas, prioritaskan pencarian global tanpa batasan kategori yang kaku
+        # 2. Kotak Pencarian Bebas di Bawah Kategori
+        search_query = st.sidebar.text_input(
+            "Atau Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", ""
+        )
+
+        # Logika Prioritas Filter yang Fleksibel & Sempurna
         if search_query.strip():
             filter_applied = True
             df_active = df_all_master.copy()
@@ -151,7 +151,7 @@ try:
             else:
                 df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
-            # Filter Sub-Kategori / Brand / Spesifikasi di Sidebar
+            # Filter Sub-Kategori / Breakdown di Sidebar
             if pilih_kategori == "Kabel":
                 if "Tipe Kabel" in df_active.columns:
                     tipe_list = ["Semua Spesifikasi"] + list(
