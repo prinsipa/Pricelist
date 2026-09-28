@@ -113,11 +113,8 @@ try:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # Gunakan st.session_state untuk mengatur interaksi yang bersih antara Kategori dan Search
         if "last_category" not in st.session_state:
             st.session_state.last_category = "-- Pilih Kategori --"
-        if "last_search" not in st.session_state:
-            st.session_state.last_search = ""
 
         kategori_keys = list(data_dict.keys())
         non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
@@ -131,23 +128,17 @@ try:
             "Atau Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", key="widget_search"
         )
 
-        # Jika user mengubah kategori, bersihkan kotak pencarian bebas
+        # Jika user mengganti kategori, reset kotak pencarian bebas secara bersih
         if pilih_kategori != st.session_state.last_category:
             st.session_state.last_category = pilih_kategori
-            if pilih_kategori != "-- Pilih Kategori --":
+            if pilih_kategori != "-- Pilih Kategori --" and search_query.strip():
                 st.session_state.widget_search = ""
                 search_query = ""
-
-        # Jika user mengetik pencarian bebas, reset pilihan kategori ke default
-        if search_query.strip() != st.session_state.last_search:
-            st.session_state.last_search = search_query.strip()
-            if search_query.strip():
-                # Tidak perlu reset paksa widget kategori agar mulus, tapi logika di bawah memprioritaskan yang aktif
 
         df_active = pd.DataFrame()
         filter_applied = False
 
-        # Logika Filter Utama yang Saling Mendukung
+        # Logika Filter Utama yang Fleksibel
         if search_query.strip():
             filter_applied = True
             df_active = df_all_master.copy()
@@ -243,7 +234,7 @@ try:
                     if p_col in df_display.columns:
                         df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
-                # HAPUS KOLOM YANG HANYA BERISI 'None' ATAU KOSONG SECARA TOTAL
+                # HAPUS KOLOM KOSONG / NONE SECARA TOTAL
                 df_display = df_display.dropna(how="all", axis=1)
                 df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN", "-", ""]).all()]
 
