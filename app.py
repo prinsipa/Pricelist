@@ -113,24 +113,41 @@ try:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # 1. Pilihan Kategori Produk di Atas
+        # Gunakan st.session_state untuk mengatur interaksi yang bersih antara Kategori dan Search
+        if "last_category" not in st.session_state:
+            st.session_state.last_category = "-- Pilih Kategori --"
+        if "last_search" not in st.session_state:
+            st.session_state.last_search = ""
+
         kategori_keys = list(data_dict.keys())
         non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
         kategori_options = ["-- Pilih Kategori --", "Kabel"] + non_cable_cats
         
         pilih_kategori = st.sidebar.selectbox(
-            "Pilih Kategori Produk:", kategori_options
+            "Pilih Kategori Produk:", kategori_options, key="widget_kategori"
         )
+
+        search_query = st.sidebar.text_input(
+            "Atau Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", key="widget_search"
+        )
+
+        # Jika user mengubah kategori, bersihkan kotak pencarian bebas
+        if pilih_kategori != st.session_state.last_category:
+            st.session_state.last_category = pilih_kategori
+            if pilih_kategori != "-- Pilih Kategori --":
+                st.session_state.widget_search = ""
+                search_query = ""
+
+        # Jika user mengetik pencarian bebas, reset pilihan kategori ke default
+        if search_query.strip() != st.session_state.last_search:
+            st.session_state.last_search = search_query.strip()
+            if search_query.strip():
+                # Tidak perlu reset paksa widget kategori agar mulus, tapi logika di bawah memprioritaskan yang aktif
 
         df_active = pd.DataFrame()
         filter_applied = False
 
-        # 2. Kotak Pencarian Bebas di Bawah Kategori
-        search_query = st.sidebar.text_input(
-            "Atau Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", ""
-        )
-
-        # Logika Prioritas Filter yang Fleksibel & Sempurna
+        # Logika Filter Utama yang Saling Mendukung
         if search_query.strip():
             filter_applied = True
             df_active = df_all_master.copy()
