@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="Pricelist Produk & Material", page_icon="logo.png", layout="wide"
 )
 
-st.title("⚡ Cek Harga Pricelist Produk & Material")
+st.title("Pricelist Produk & Material")
 st.write(
     "Data harga diambil secara real-time dan otomatis dari Google Spreadsheet."
 )
@@ -51,16 +51,14 @@ def load_all_sheets_dict():
             if is_cable and len(df_temp.columns) > 0:
                 first_col = df_temp.columns[0]
                 
-                current_core = None  # Mulai dengan None agar baris sebelum core pertama dibuang/diabaikan
+                current_core = None  # Abaikan baris di atas core pertama
                 cleaned_rows = []
                 for idx, row in df_temp.iterrows():
                     val = str(row[first_col]).strip()
-                    # Cek apakah baris ini adalah baris pemisah core
                     if "CORE" in val.upper() or "core" in val:
                         current_core = val.upper()
                         continue
                     
-                    # Hanya masukkan baris jika sudah masuk ke dalam kategori core tertentu (abaikan "Standard" di atas)
                     if current_core is not None:
                         row_dict = row.to_dict()
                         row_dict["Kategori Core"] = current_core
@@ -136,10 +134,8 @@ try:
                     df_active = df_active[df_active["Tipe Kabel"] == pilih_tipe]
 
             if "Kategori Core" in df_active.columns:
-                # Urutkan core agar "SINGLE CORE" berada di urutan teratas
                 unique_cores = list(df_active["Kategori Core"].dropna().unique())
                 
-                # Fungsi sorting kustom: taruh SINGLE CORE paling atas
                 def core_sort_key(val):
                     if "SINGLE" in val.upper():
                         return (0, val)
@@ -186,7 +182,7 @@ try:
 
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
-        # --- BERSIHKAN TAMPILAN TABEL MUTLAK ---
+        # --- BERSIHKAN TAMPILAN TABEL AMAN ---
         df_display = df_active.copy()
 
         cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
@@ -195,8 +191,12 @@ try:
                 df_display = df_display.drop(columns=[col])
 
         df_display = df_display.loc[:, ~df_display.columns.duplicated()]
-        df_display = df_display.dropna(how="all", axis=1)
-        df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN", ""]).all()]
+
+        # Pastikan kolom Harga per Meter (Rp) atau Harga tidak hilang dan ubah nilai NaN menjadi "-" agar bersih
+        price_cols = ["Harga per Meter (Rp)", "Harga"]
+        for p_col in price_cols:
+            if p_col in df_display.columns:
+                df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
         # Urutkan kolom khusus kabel agar rapi
         if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
