@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="Pricelist Produk & Material", page_icon="logo.png", layout="wide"
 )
 
-st.title("⚡ Cek Harga Pricelist Produk & Material")
+st.title("Pricelist Produk & Material")
 st.write(
     "Data harga diambil secara real-time dan otomatis dari Google Spreadsheet."
 )
@@ -123,6 +123,15 @@ try:
         non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
         kategori_options = ["-- Pilih Kategori --", "Kabel"] + non_cable_cats
         
+        # Callback untuk kotak pencarian bebas (DIPINDAH KE ATAS)
+        def on_change_search():
+            search_val = st.session_state.widget_search
+            if search_val.strip():
+                # Jika user mengetik pencarian bebas, reset dropdown kategori ke default
+                st.session_state.widget_cat = "-- Pilih Kategori --"
+                st.session_state.selected_category = "-- Pilih Kategori --"
+            st.session_state.search_text = search_val
+
         # Callback untuk dropdown kategori
         def on_change_category():
             cat_val = st.session_state.widget_cat
@@ -132,26 +141,19 @@ try:
                 st.session_state.search_text = ""
             st.session_state.selected_category = cat_val
 
-        # Callback untuk kotak pencarian bebas
-        def on_change_search():
-            search_val = st.session_state.widget_search
-            if search_val.strip():
-                # Jika user mengetik pencarian bebas, kembalikan dropdown kategori ke default
-                st.session_state.widget_cat = "-- Pilih Kategori --"
-                st.session_state.selected_category = "-- Pilih Kategori --"
-            st.session_state.search_text = search_val
+        # 1. Kotak Pencarian Bebas diposisikan di ATAS
+        search_query = st.sidebar.text_input(
+            "Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", 
+            key="widget_search",
+            on_change=on_change_search
+        )
 
+        # 2. Pilihan Kategori Produk diposisikan di BAWAH search bar
         pilih_kategori = st.sidebar.selectbox(
             "Pilih Kategori Produk:", 
             kategori_options, 
             key="widget_cat",
             on_change=on_change_category
-        )
-
-        search_query = st.sidebar.text_input(
-            "Atau Cari Bebas (Ukuran / Tipe / Spesifikasi / Brand):", 
-            key="widget_search",
-            on_change=on_change_search
         )
 
         df_active = pd.DataFrame()
