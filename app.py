@@ -4,10 +4,10 @@ import streamlit as st
 
 # Konfigurasi Tampilan Web
 st.set_page_config(
-    page_title="Pricelist Produk & Material", page_icon="⚡", layout="wide"
+    page_title="Pricelist Produk & Material", page_icon="logo.png", layout="wide"
 )
 
-st.title("Pricelist Produk & Material")
+st.title("⚡ Cek Harga Pricelist Produk & Material")
 st.write(
     "Data harga diambil secara real-time dan otomatis dari Google Spreadsheet."
 )
@@ -51,22 +51,20 @@ def load_all_sheets_dict():
             if is_cable and len(df_temp.columns) > 0:
                 first_col = df_temp.columns[0]
                 
-                # Buat kolom penanda Core baru berdasarkan baris pemisah di spreadsheet
-                current_core = "Standard"
-                core_list = []
-                
+                current_core = None  # Mulai dengan None agar baris sebelum core pertama dibuang/diabaikan
                 cleaned_rows = []
                 for idx, row in df_temp.iterrows():
                     val = str(row[first_col]).strip()
-                    # Cek apakah baris ini adalah baris pemisah core (misal mengandung kata CORE)
+                    # Cek apakah baris ini adalah baris pemisah core
                     if "CORE" in val.upper() or "core" in val:
-                        current_core = val.upper()  # Contoh: SINGLE CORE, 2 CORE, dll.
-                        continue  # Lewati baris pemisah ini agar tidak jadi data produk
+                        current_core = val.upper()
+                        continue
                     
-                    # Jika bukan baris pemisah, catat core-nya dan simpan barisnya
-                    row_dict = row.to_dict()
-                    row_dict["Kategori Core"] = current_core
-                    cleaned_rows.append(row_dict)
+                    # Hanya masukkan baris jika sudah masuk ke dalam kategori core tertentu (abaikan "Standard" di atas)
+                    if current_core is not None:
+                        row_dict = row.to_dict()
+                        row_dict["Kategori Core"] = current_core
+                        cleaned_rows.append(row_dict)
                 
                 if cleaned_rows:
                     df_temp = pd.DataFrame(cleaned_rows)
@@ -75,7 +73,6 @@ def load_all_sheets_dict():
 
             # 3. Standarisasi nama kolom pertama kabel menjadi "Ukuran"
             if is_cable and len(df_temp.columns) > 0:
-                # Ganti nama kolom pertama apa pun itu (termasuk "Ukuran SINGLE CORE") menjadi "Ukuran"
                 old_first_col = df_temp.columns[0]
                 df_temp = df_temp.rename(columns={old_first_col: "Ukuran"})
 
@@ -87,11 +84,10 @@ def load_all_sheets_dict():
                 kategori_nama = "Kabel"
                 df_temp["Tipe Kabel"] = sheet
             else:
-                kategori_nama = sheet  # Inverter, Solar PV, Mounting PV
+                kategori_nama = sheet
 
             df_temp["Kategori Produk"] = kategori_nama
 
-            # Simpan dataframe bersih ke dictionary
             data_dict[sheet] = df_temp
         except Exception as e:
             print(f"Gagal memuat sheet '{sheet}': {e}")
@@ -105,7 +101,6 @@ try:
     if not data_dict:
         st.warning("⚠️ Belum ada data yang berhasil dimuat.")
     else:
-        # Gabungkan semua data untuk filter utama
         all_dfs = list(data_dict.values())
         df_combined = pd.concat(all_dfs, ignore_index=True)
         df_combined.columns = df_combined.columns.str.strip()
@@ -113,7 +108,6 @@ try:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # 1. Filter Kategori Produk Utama
         kategori_list = ["Semua Kategori"] + list(
             df_combined["Kategori Produk"].dropna().unique()
         )
@@ -121,7 +115,6 @@ try:
             "Pilih Kategori Produk:", kategori_list
         )
 
-        # Tentukan dataframe aktif berdasarkan pilihan kategori
         if pilih_kategori == "Semua Kategori":
             df_active = df_combined.copy()
         elif pilih_kategori == "Kabel":
@@ -130,7 +123,7 @@ try:
         else:
             df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
-        # 2. Filter Sub-Kategori / Brand di Sidebar
+        # Filter Sub-Kategori / Brand di Sidebar
         if pilih_kategori == "Kabel":
             if "Tipe Kabel" in df_active.columns:
                 tipe_list = ["Semua Spesifikasi"] + list(
@@ -142,11 +135,19 @@ try:
                 if pilih_tipe != "Semua Spesifikasi":
                     df_active = df_active[df_active["Tipe Kabel"] == pilih_tipe]
 
-            # Tambahan filter pilihan Core (Single Core, 2 Core, dll) di sidebar agar makin rapi
             if "Kategori Core" in df_active.columns:
-                core_list = ["Semua Core"] + list(
-                    df_active["Kategori Core"].dropna().unique()
-                )
+                # Urutkan core agar "SINGLE CORE" berada di urutan teratas
+                unique_cores = list(df_active["Kategori Core"].dropna().unique())
+                
+                # Fungsi sorting kustom: taruh SINGLE CORE paling atas
+                def core_sort_key(val):
+                    if "SINGLE" in val.upper():
+                        return (0, val)
+                    return (1, val)
+                
+                unique_cores.sort(key=core_sort_key)
+                
+                core_list = ["Semua Core"] + unique_cores
                 pilih_core = st.sidebar.selectbox(
                     "Pilih Jenis Core:", core_list
                 )
@@ -172,7 +173,7 @@ try:
                 if pilih_brand != "Semua Brand":
                     df_active = df_active[df_active["Brand"] == pilih_brand]
 
-        # 3. Filter Pencarian Bebas
+        # Filter Pencarian Bebas
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
         )
@@ -188,31 +189,25 @@ try:
         # --- BERSIHKAN TAMPILAN TABEL MUTLAK ---
         df_display = df_active.copy()
 
-        # Hapus kolom helper sistem agar tidak tampil di web
         cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
         for col in cols_to_drop:
             if col in df_display.columns:
                 df_display = df_display.drop(columns=[col])
 
-        # Buang kolom yang namanya duplikat
         df_display = df_display.loc[:, ~df_display.columns.duplicated()]
-
-        # Hapus kolom apa pun yang seluruh isinya 'None' atau kosong
         df_display = df_display.dropna(how="all", axis=1)
         df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN", ""]).all()]
 
-        # Urutkan kolom khusus kabel agar rapi: Ukuran, Kategori Core, Jenis Kabel, Brand, Spesifikasi, Harga per Meter (Rp)
+        # Urutkan kolom khusus kabel agar rapi
         if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
             preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
             existing_cols = [c for c in preferred_order if c in df_display.columns]
             other_cols = [c for c in df_display.columns if c not in existing_cols]
             df_display = df_display[existing_cols + other_cols]
 
-        # Menampilkan informasi jumlah produk dan tabel interaktif yang bersih
         st.info(f"Menampilkan jumlah produk: {len(df_display)}")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-    # Tombol Refresh Manual
     if st.button("🔄 Muat Ulang Data"):
         st.cache_data.clear()
         st.rerun()
