@@ -107,8 +107,17 @@ try:
         cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
         df_cable_combined = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True) if cable_sheets else pd.DataFrame()
 
+        # Gabungkan seluruh data untuk pencarian global yang fleksibel
+        df_all_master = pd.concat(list(data_dict.values()), ignore_index=True)
+        df_all_master.columns = df_all_master.columns.str.strip()
+
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
+
+        # 1. Kotak Pencarian Bebas Terlebih Dahulu (Agar fleksibel global)
+        search_query = st.sidebar.text_input(
+            "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
+        )
 
         kategori_keys = list(data_dict.keys())
         non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
@@ -121,7 +130,21 @@ try:
         df_active = pd.DataFrame()
         filter_applied = False
 
-        if pilih_kategori != "-- Pilih Kategori --":
+        # Logika Fleksibel: Jika user mengetik pencarian bebas, prioritaskan pencarian global tanpa batasan kategori yang kaku
+        if search_query.strip():
+            filter_applied = True
+            df_active = df_all_master.copy()
+            
+            clean_search = re.sub(r'[^a-z0-9]', '', search_query.lower())
+
+            def match_row(row):
+                row_combined = "".join([str(val) for val in row.values if pd.notna(val) and str(val) != "None"]).lower()
+                row_cleaned = re.sub(r'[^a-z0-9]', '', row_combined)
+                return clean_search in row_cleaned
+
+            df_active = df_active[df_active.apply(match_row, axis=1)]
+
+        elif pilih_kategori != "-- Pilih Kategori --":
             filter_applied = True
             if pilih_kategori == "Kabel":
                 df_active = df_cable_combined.copy()
@@ -139,7 +162,6 @@ try:
                     )
                     if pilih_tipe != "Semua Spesifikasi":
                         df_active = df_active[df_active["Tipe Kabel"] == pilih_tipe]
-                        filter_applied = True
 
                 if "Kategori Core" in df_active.columns:
                     unique_cores = list(df_active["Kategori Core"].dropna().unique())
@@ -157,7 +179,6 @@ try:
                     )
                     if pilih_core != "Semua Core":
                         df_active = df_active[df_active["Kategori Core"] == pilih_core]
-                        filter_applied = True
 
                 if "Jenis Kabel" in df_active.columns:
                     jenis_list = ["Semua Jenis"] + list(
@@ -168,7 +189,6 @@ try:
                     )
                     if pilih_jenis != "Semua Jenis":
                         df_active = df_active[df_active["Jenis Kabel"] == pilih_jenis]
-                        filter_applied = True
 
             else:
                 if "Brand" in df_active.columns:
@@ -178,25 +198,6 @@ try:
                     pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
                     if pilih_brand != "Semua Brand":
                         df_active = df_active[df_active["Brand"] == pilih_brand]
-                        filter_applied = True
-
-        # Filter Pencarian Bebas yang Cerdas & Akurat
-        search_query = st.sidebar.text_input(
-            "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
-        )
-        if search_query.strip():
-            filter_applied = True
-            if pilih_kategori == "-- Pilih Kategori --":
-                df_active = pd.concat(list(data_dict.values()), ignore_index=True)
-            
-            clean_search = re.sub(r'[^a-z0-9]', '', search_query.lower())
-
-            def match_row(row):
-                row_combined = "".join([str(val) for val in row.values if pd.notna(val) and str(val) != "None"]).lower()
-                row_cleaned = re.sub(r'[^a-z0-9]', '', row_combined)
-                return clean_search in row_cleaned
-
-            df_active = df_active[df_active.apply(match_row, axis=1)]
 
         # --- TAMPILAN HALAMAN UTAMA ---
         if not filter_applied or (pilih_kategori == "-- Pilih Kategori --" and not search_query.strip()):
@@ -240,7 +241,6 @@ try:
                     other_cols = [c for c in df_display.columns if c not in existing_cols]
                     df_display = df_display[existing_cols + other_cols]
 
-                # Pastikan kolom bertuliskan 'None' dibuang total jika ada yang lolos
                 df_display = df_display.loc[:, (df_display != "None").any(axis=0)]
 
                 st.info(f"Menampilkan jumlah produk ({cat}): {len(df_display)}")
