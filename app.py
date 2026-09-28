@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="Pricelist Produk & Material", page_icon="logo.png", layout="wide"
 )
 
-st.title("Pricelist Produk & Material")
+st.title("⚡ Cek Harga Pricelist Produk & Material")
 st.write(
     "Data harga diambil secara real-time dan otomatis dari Google Spreadsheet."
 )
@@ -181,20 +181,18 @@ try:
                         df_active = df_active[df_active["Brand"] == pilih_brand]
                         filter_applied = True
 
-        # Filter Pencarian Bebas yang Super Cerdas (Mengabaikan simbol khusus & spasi)
+        # Filter Pencarian Bebas yang Cerdas & Akurat
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
         )
         if search_query.strip():
             filter_applied = True
-            if pilih_kategori == "-- Pilih Kategori --" or df_active.empty:
+            if pilih_kategori == "-- Pilih Kategori --":
                 df_active = df_combined.copy()
             
-            # Bersihkan query pencarian (hanya ambil huruf dan angka, abaikan simbol ² atau spasi berlebih)
             clean_search = re.sub(r'[^a-z0-9]', '', search_query.lower())
 
             def match_row(row):
-                # Gabungkan seluruh kolom, ubah ke lowercase, lalu bersihkan dari simbol khusus
                 row_combined = "".join([str(val) for val in row.values if pd.notna(val)]).lower()
                 row_cleaned = re.sub(r'[^a-z0-9]', '', row_combined)
                 return clean_search in row_cleaned
@@ -203,31 +201,46 @@ try:
 
         # --- TAMPILAN HALAMAN UTAMA ---
         if not filter_applied or (pilih_kategori == "-- Pilih Kategori --" and not search_query.strip()):
-            st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian (contoh: *6mm*, *NYA*, atau *Supreme*) untuk melihat data pricelist.")
+            st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian untuk melihat data pricelist.")
         else:
-            df_display = df_active.copy()
+            # Jika pencarian mencakup berbagai kategori, tampilkan per kelompok kategori agar format tabelnya sesuai aslinya
+            categories_to_display = df_active["Kategori Produk"].dropna().unique()
 
-            cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
-            for col in cols_to_drop:
-                if col in df_display.columns:
-                    df_display = df_display.drop(columns=[col])
+            for cat in categories_to_display:
+                df_cat = df_active[df_active["Kategori Produk"] == cat].copy()
+                if df_cat.empty:
+                    continue
 
-            df_display = df_display.loc[:, ~df_display.columns.duplicated()]
+                st.subheader(f"📂 Kategori: {cat}")
 
-            # Bersihkan nilai sel harga yang kosong menjadi tanda strip "-"
-            price_cols = ["Harga per Meter (Rp)", "Harga"]
-            for p_col in price_cols:
-                if p_col in df_display.columns:
-                    df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
+                df_display = df_cat.copy()
+                cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
+                for col in cols_to_drop:
+                    if col in df_display.columns:
+                        df_display = df_display.drop(columns=[col])
 
-            # Urutkan kolom khusus kabel agar rapi
-            if pilih_kategori == "Kabel" or (pilih_kategori == "-- Pilih Kategori --" and search_query.strip()):
-                preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
-                existing_cols = [c for c in preferred_order if c in df_display.columns]
-                df_display = df_display[existing_cols]
+                df_display = df_display.loc[:, ~df_display.columns.duplicated()]
 
-            st.info(f"Menampilkan jumlah produk: {len(df_display)}")
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
+                # Bersihkan nilai sel harga yang kosong menjadi tanda strip "-"
+                price_cols = ["Harga per Meter (Rp)", "Harga"]
+                for p_col in price_cols:
+                    if p_col in df_display.columns:
+                        df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
+
+                # Format kolom khusus berdasarkan jenis produknya
+                if cat == "Kabel":
+                    preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
+                    existing_cols = [c for c in preferred_order if c in df_display.columns]
+                    df_display = df_display[existing_cols]
+                elif cat in ["Inverter", "Solar PV", "Mounting PV", "Baterai"]:
+                    # Pastikan kolom format asli non-kabel tampil rapi
+                    preferred_order = ["Kapasitas", "Brand", "Spesifikasi", "Harga"]
+                    existing_cols = [c for c in preferred_order if c in df_display.columns]
+                    other_cols = [c for c in df_display.columns if c not in existing_cols]
+                    df_display = df_display[existing_cols + other_cols]
+
+                st.info(f"Menampilkan jumlah produk ({cat}): {len(df_display)}")
+                st.dataframe(df_display, use_container_width=True, hide_index=True)
 
     if st.button("🔄 Muat Ulang Data"):
         st.cache_data.clear()
