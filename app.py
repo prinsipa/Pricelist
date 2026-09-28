@@ -14,7 +14,7 @@ st.write(
 )
 
 
-# Fungsi untuk mengambil dan merapikan data per sheet secara independen
+# Fungsi untuk mengambil dan merapikan data per sheet
 @st.cache_data(ttl=60)
 def load_all_sheets_dict():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
@@ -91,9 +91,6 @@ def load_all_sheets_dict():
 
             df_temp["Kategori Produk"] = kategori_nama
 
-            # 6. BERSIHKAN KOLOM KOSONG/NONE KHUSUS PADA SHEET INI SEBELUM DISIMPAN
-            df_temp = df_temp.loc[:, ~df_temp.isin(["None", "none", "nan", "NaN", ""]).all()]
-
             data_dict[sheet] = df_temp
         except Exception as e:
             print(f"Gagal memuat sheet '{sheet}': {e}")
@@ -107,16 +104,13 @@ try:
     if not data_dict:
         st.warning("⚠️ Belum ada data yang berhasil dimuat.")
     else:
-        # Gabungkan hanya sheet kabel untuk opsi Kabel
         cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
         df_cable_combined = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True) if cable_sheets else pd.DataFrame()
 
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # Ambil daftar kategori unik dari data_dict
         kategori_keys = list(data_dict.keys())
-        # Kelompokkan nama sheet non-kabel
         non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
         kategori_options = ["-- Pilih Kategori --", "Kabel"] + non_cable_cats
         
@@ -192,14 +186,13 @@ try:
         )
         if search_query.strip():
             filter_applied = True
-            # Jika user mengetik search tanpa pilih kategori, gabungkan semua sheet yang sudah bersih
             if pilih_kategori == "-- Pilih Kategori --":
                 df_active = pd.concat(list(data_dict.values()), ignore_index=True)
             
             clean_search = re.sub(r'[^a-z0-9]', '', search_query.lower())
 
             def match_row(row):
-                row_combined = "".join([str(val) for val in row.values if pd.notna(val)]).lower()
+                row_combined = "".join([str(val) for val in row.values if pd.notna(val) and str(val) != "None"]).lower()
                 row_cleaned = re.sub(r'[^a-z0-9]', '', row_combined)
                 return clean_search in row_cleaned
 
@@ -232,7 +225,8 @@ try:
                     if p_col in df_display.columns:
                         df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
-                # BUANG TOTAL KOLOM YANG BERISI NONE/KOSONG
+                # HAPUS KOLOM YANG HANYA BERISI 'None' ATAU KOSONG SECARA TOTAL
+                df_display = df_display.dropna(how="all", axis=1)
                 df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN", "-", ""]).all()]
 
                 # Susun urutan kolom secara presisi
@@ -245,6 +239,9 @@ try:
                     existing_cols = [c for c in preferred_order if c in df_display.columns]
                     other_cols = [c for c in df_display.columns if c not in existing_cols]
                     df_display = df_display[existing_cols + other_cols]
+
+                # Pastikan kolom bertuliskan 'None' dibuang total jika ada yang lolos
+                df_display = df_display.loc[:, (df_display != "None").any(axis=0)]
 
                 st.info(f"Menampilkan jumlah produk ({cat}): {len(df_display)}")
                 st.dataframe(df_display, use_container_width=True, hide_index=True)
