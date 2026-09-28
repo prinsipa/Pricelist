@@ -55,10 +55,15 @@ def load_all_sheets_dict():
                 cleaned_rows = []
                 for idx, row in df_temp.iterrows():
                     val = str(row[first_col]).strip()
+                    # Tangkap baris pemisah core (termasuk SINGLE CORE)
                     if "CORE" in val.upper() or "core" in val:
                         current_core = val.upper()
                         continue
                     
+                    # Jika baris pertama sebelum core terdeteksi tapi belum ada core, set default ke "SINGLE CORE"
+                    if current_core is None and idx < 5:
+                        current_core = "SINGLE CORE"
+
                     if current_core is not None:
                         row_dict = row.to_dict()
                         row_dict["Kategori Core"] = current_core
@@ -171,7 +176,7 @@ try:
 
         # Filter Pencarian Bebas
         search_query = st.sidebar.text_input(
-            "Cari Ukuran / Tipe / Spesifikasi / Brand / Jenis (cth: NYA):", ""
+            "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
         )
         if search_query:
             clean_query = search_query.lower().replace(" ", "")
@@ -182,7 +187,7 @@ try:
 
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
-        # --- BERSIHKAN TAMPILAN TABEL AMAN ---
+        # --- BERSIHKAN TAMPILAN TABEL MUTLAK ---
         df_display = df_active.copy()
 
         cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
@@ -192,18 +197,17 @@ try:
 
         df_display = df_display.loc[:, ~df_display.columns.duplicated()]
 
-        # Ubah nilai harga yang kosong menjadi tanda strip "-" agar rapi
+        # Bersihkan nilai sel harga yang kosong menjadi tanda strip "-"
         price_cols = ["Harga per Meter (Rp)", "Harga"]
         for p_col in price_cols:
             if p_col in df_display.columns:
                 df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
-        # Urutkan kolom khusus kabel agar rapi
+        # Jika kategori Kabel aktif, buang kolom asing seperti 'Kapasitas' atau 'Harga' non-kabel agar tabel bersih
         if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
             preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
             existing_cols = [c for c in preferred_order if c in df_display.columns]
-            other_cols = [c for c in df_display.columns if c not in existing_cols]
-            df_display = df_display[existing_cols + other_cols]
+            df_display = df_display[existing_cols]
 
         st.info(f"Menampilkan jumlah produk: {len(df_display)}")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
