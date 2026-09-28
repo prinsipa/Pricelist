@@ -1,4 +1,5 @@
 import urllib.parse
+import re
 import pandas as pd
 import streamlit as st
 
@@ -7,7 +8,7 @@ st.set_page_config(
     page_title="Pricelist Produk & Material", page_icon="logo.png", layout="wide"
 )
 
-st.title("⚡ Cek Harga Pricelist Produk & Material")
+st.title("Pricelist Produk & Material")
 st.write(
     "Data harga diambil secara real-time dan otomatis dari Google Spreadsheet."
 )
@@ -180,7 +181,7 @@ try:
                         df_active = df_active[df_active["Brand"] == pilih_brand]
                         filter_applied = True
 
-        # Filter Pencarian Bebas yang Super Fleksibel & Aman dari Error
+        # Filter Pencarian Bebas yang Super Cerdas (Mengabaikan simbol khusus & spasi)
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
         )
@@ -189,20 +190,20 @@ try:
             if pilih_kategori == "-- Pilih Kategori --" or df_active.empty:
                 df_active = df_combined.copy()
             
-            # Pisahkan kata pencarian untuk mencocokkan secara fleksibel tanpa batasan koma/spasi
-            query_terms = search_query.lower().split()
+            # Bersihkan query pencarian (hanya ambil huruf dan angka, abaikan simbol ² atau spasi berlebih)
+            clean_search = re.sub(r'[^a-z0-9]', '', search_query.lower())
 
             def match_row(row):
-                # Gabungkan seluruh kolom baris menjadi satu teks aman (mengatasi float/None)
-                row_str = " ".join([str(val) for val in row.values if pd.notna(val)]).lower()
-                # Pastikan semua kata kunci yang diketik user ada di dalam baris tersebut
-                return all(term in row_str for term in query_terms)
+                # Gabungkan seluruh kolom, ubah ke lowercase, lalu bersihkan dari simbol khusus
+                row_combined = "".join([str(val) for val in row.values if pd.notna(val)]).lower()
+                row_cleaned = re.sub(r'[^a-z0-9]', '', row_combined)
+                return clean_search in row_cleaned
 
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
         # --- TAMPILAN HALAMAN UTAMA ---
-        if not filter_applied or pilih_kategori == "-- Pilih Kategori --" and not search_query.strip():
-            st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian (contoh: *NYA 1.5* atau *Supreme*) untuk melihat data pricelist.")
+        if not filter_applied or (pilih_kategori == "-- Pilih Kategori --" and not search_query.strip()):
+            st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian (contoh: *6mm*, *NYA*, atau *Supreme*) untuk melihat data pricelist.")
         else:
             df_display = df_active.copy()
 
