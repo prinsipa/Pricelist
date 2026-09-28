@@ -17,7 +17,7 @@ st.write(
 def load_all_sheets():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
 
-    # Daftar nama tab/sheet sesuai dengan Google Spreadsheet Anda
+    # Daftar tab/sheet sesuai dengan Google Spreadsheet Anda
     sheet_names = [
         "LV Cable (CU)",
         "LV Cable (AL)",
@@ -42,25 +42,20 @@ def load_all_sheets():
             if df_temp.empty:
                 continue
 
-            # Bersihkan baris pemisah kategori core (misal: "SINGLE CORE", "2 CORE", dll.)
-            # Baris pemisah biasanya hanya terisi teks di kolom pertama dan kolom lainnya kosong/NaN
+            # Bersihkan baris yang tidak memiliki harga atau ukuran (untuk membuang baris teks seperti "SINGLE CORE")
             if "Ukuran" in df_temp.columns:
-                # Jika ada baris yang bertuliskan CORE, kita bisa jadikan itu sebagai informasi tambahan atau dibersihkan
-                df_temp = df_temp.dropna(
-                    subset=["Harga per Meter (Rp)", "Ukuran"], how="all"
-                )
+                df_temp = df_temp.dropna(subset=["Ukuran"])
+                # Ubah kolom ukuran menjadi string agar aman
+                df_temp["Ukuran"] = df_temp["Ukuran"].astype(str)
+                # Buang baris yang isinya kata-kata header section seperti "CORE"
+                df_temp = df_temp[~df_temp["Ukuran"].str.contains("CORE|Core|core", case=False, na=False)]
 
             # Tentukan Kategori Utama berdasarkan nama sheet
-            if "Cable" in sheet:
+            if "Cable" in sheet or "Kabel" in sheet:
                 kategori_nama = "Kabel"
-                # Tentukan jenis konduktor dan tegangan dari nama sheet
-                df_temp.insert(
-                    0, "Tipe Kabel", sheet
-                )  # Contoh: LV Cable (CU), MV Cable (AL)
+                df_temp.insert(0, "Tipe Kabel", sheet)
             else:
-                kategori_nama = (
-                    sheet  # Untuk Inverter, Solar PV, Mounting PV, dll.
-                )
+                kategori_nama = sheet  # Inverter, Solar PV, Mounting PV
 
             # Tambahkan kolom Kategori Produk di posisi paling depan
             df_temp.insert(0, "Kategori Produk", kategori_nama)
@@ -80,7 +75,7 @@ try:
     df = load_all_sheets()
 
     if df.empty:
-        st.warning("⚠️ Belum ada data yang berhasil dimuat.")
+        st.warning("⚠️ Belum ada data yang berhasil dimuat. Periksa kembali nama tab di Google Spreadsheet.")
     else:
         # Sidebar Filter
         st.sidebar.header("🔍 Filter Pencarian Produk")
@@ -96,14 +91,14 @@ try:
             if pilih_kategori != "Semua Kategori":
                 df = df[df["Kategori Produk"] == pilih_kategori]
 
-        # 2. Jika Kategori adalah Kabel, tampilkan sub-filter berdasarkan Tipe/Tab Kabel
+        # 2. Jika Kategori adalah Kabel, tampilkan sub-filter berdasarkan Tipe Kabel (LV/MV & CU/AL) & Jenis Kabel
         if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
             if "Tipe Kabel" in df.columns:
                 tipe_kabel_list = ["Semua"] + list(
                     df["Tipe Kabel"].dropna().unique()
                 )
                 pilih_tipe_kabel = st.sidebar.selectbox(
-                    "Pilih Spesifikasi Kabel (LV/MV & CU/AL):", tipe_kabel_list
+                    "Pilih Spesifikasi Kabel:", tipe_kabel_list
                 )
                 if pilih_tipe_kabel != "Semua":
                     df = df[df["Tipe Kabel"] == pilih_tipe_kabel]
@@ -113,7 +108,7 @@ try:
                     df["Jenis Kabel"].dropna().unique()
                 )
                 pilih_jenis_kabel = st.sidebar.selectbox(
-                    "Pilih Jenis Kabel (NYM/NYY/NYA):", jenis_kabel_list
+                    "Pilih Jenis Kabel (NYM/NYY/dll):", jenis_kabel_list
                 )
                 if pilih_jenis_kabel != "Semua":
                     df = df[df["Jenis Kabel"] == pilih_jenis_kabel]
