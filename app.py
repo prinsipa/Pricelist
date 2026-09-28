@@ -13,12 +13,11 @@ st.write(
 )
 
 
-# Fungsi untuk mengambil data dari semua sheet secara dinamis dan aman
+# Fungsi untuk mengambil data dari semua sheet secara dinamis
 @st.cache_data(ttl=60)
 def load_all_sheets():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
 
-    # Daftar tab/sheet sesuai dengan Google Spreadsheet Anda
     sheet_names = [
         "LV Cable (CU)",
         "LV Cable (AL)",
@@ -32,10 +31,8 @@ def load_all_sheets():
 
     for sheet in sheet_names:
         try:
-            # Menggunakan urllib.parse.quote untuk mengenkod spasi dan tanda kurung pada nama tab
             encoded_sheet = urllib.parse.quote(sheet)
             url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={encoded_sheet}"
-            
             df_temp = pd.read_csv(url)
 
             # Buang kolom kosong / Unnamed
@@ -46,7 +43,7 @@ def load_all_sheets():
             if df_temp.empty:
                 continue
 
-            # Bersihkan baris teks pemisah section seperti "SINGLE CORE", "2 CORE", dll.
+            # Bersihkan baris teks pemisah section seperti "SINGLE CORE"
             if "Ukuran" in df_temp.columns:
                 df_temp = df_temp.dropna(subset=["Ukuran"])
                 df_temp["Ukuran"] = df_temp["Ukuran"].astype(str)
@@ -54,7 +51,7 @@ def load_all_sheets():
                     ~df_temp["Ukuran"].str.contains("CORE|Core|core", case=False, na=False)
                 ]
 
-            # Tentukan Kategori Utama berdasarkan nama tab
+            # Tentukan Kategori Utama
             sheet_lower = sheet.lower()
             if "cable" in sheet_lower or "kabel" in sheet_lower:
                 kategori_nama = "Kabel"
@@ -62,12 +59,10 @@ def load_all_sheets():
             else:
                 kategori_nama = sheet  # Inverter, Solar PV, Mounting PV
 
-            # Tambahkan kolom Kategori Produk di posisi paling depan
             df_temp.insert(0, "Kategori Produk", kategori_nama)
-
             all_data.append(df_temp)
         except Exception as e:
-            print(f"Catatan: Gagal memuat sheet '{sheet}': {e}")
+            print(f"Gagal memuat sheet '{sheet}': {e}")
 
     if all_data:
         df_combined = pd.concat(all_data, ignore_index=True)
@@ -80,9 +75,7 @@ try:
     df = load_all_sheets()
 
     if df.empty:
-        st.warning(
-            "⚠️ Belum ada data yang berhasil dimuat. Pastikan link Google Spreadsheet sudah diatur 'Anyone with the link can view'."
-        )
+        st.warning("⚠️ Belum ada data yang berhasil dimuat.")
     else:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
@@ -98,7 +91,7 @@ try:
             if pilih_kategori != "Semua Kategori":
                 df = df[df["Kategori Produk"] == pilih_kategori]
 
-        # 2. Jika Kategori adalah KABEL, tampilkan sub-filter Spesifikasi Kabel
+        # 2. Filter Sub-Kategori berdasarkan pilihan
         if pilih_kategori == "Kabel":
             if "Tipe Kabel" in df.columns:
                 tipe_list = ["Semua Spesifikasi"] + list(
@@ -120,7 +113,6 @@ try:
                 if pilih_jenis != "Semua Jenis":
                     df = df[df["Jenis Kabel"] == pilih_jenis]
 
-        # 3. Jika Kategori adalah Inverter / Solar PV / Mounting PV, tampilkan filter Brand
         elif pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
             if "Brand" in df.columns:
                 brand_list = ["Semua Brand"] + list(
@@ -130,7 +122,7 @@ try:
                 if pilih_brand != "Semua Brand":
                     df = df[df["Brand"] == pilih_brand]
 
-        # 4. Filter Pencarian Bebas
+        # 3. Filter Pencarian Bebas
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi:", ""
         )
@@ -143,9 +135,25 @@ try:
 
             df = df[df.apply(match_row, axis=1)]
 
-        # Menampilkan informasi jumlah data dan tabel interaktif
-        st.info(f"Menampilkan {len(df)} data produk.")
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        # --- PENYESUAIAN TAMPILAN TABEL ---
+        # Hapus kolom "Kategori Produk" dari tampilan tabel agar lebih bersih
+        if "Kategori Produk" in df.columns:
+            df_display = df.drop(columns=["Kategori Produk"])
+        else:
+            df_display = df.copy()
+
+        # Jika kategori yang dipilih adalah Inverter, Solar PV, atau Mounting PV, susun ulang kolomnya
+        if pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
+            # Pastikan kolom yang diinginkan ada di dataframe
+            desired_cols = [col for col in ["Kategori", "Brand", "Spesifikasi", "Kapasitas", "Harga"] if col in df_display.columns]
+            if desired_cols:
+                # Jika ada kolom lain yang tersisa, gabungkan
+                other_cols = [c for c in df_display.columns if c not in desired_cols]
+                df_display = df_display[desired_cols + other_cols]
+
+        # Menampilkan informasi jumlah data dan tabel interaktif yang bersih
+        st.info(f"Menampilkan {len(df_display)} data produk.")
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
 
     # Tombol Refresh Manual
     if st.button("🔄 Muat Ulang Data"):
