@@ -1,3 +1,4 @@
+import urllib.parse
 import pandas as pd
 import streamlit as st
 
@@ -12,12 +13,12 @@ st.write(
 )
 
 
-# Fungsi untuk mengambil data dari semua sheet secara otomatis
+# Fungsi untuk mengambil data dari semua sheet secara dinamis dan aman
 @st.cache_data(ttl=60)
 def load_all_sheets():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
 
-    # Daftar nama tab yang ingin dibaca (pastikan sama persis dengan di Google Spreadsheet Anda)
+    # Daftar tab/sheet sesuai dengan Google Spreadsheet Anda
     sheet_names = [
         "LV Cable (CU)",
         "LV Cable (AL)",
@@ -31,7 +32,10 @@ def load_all_sheets():
 
     for sheet in sheet_names:
         try:
-            url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={sheet}"
+            # Menggunakan urllib.parse.quote untuk mengenkod spasi dan tanda kurung pada nama tab
+            encoded_sheet = urllib.parse.quote(sheet)
+            url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={encoded_sheet}"
+            
             df_temp = pd.read_csv(url)
 
             # Buang kolom kosong / Unnamed
@@ -42,7 +46,7 @@ def load_all_sheets():
             if df_temp.empty:
                 continue
 
-            # Bersihkan baris teks header section seperti "SINGLE CORE", "2 CORE", dll.
+            # Bersihkan baris teks pemisah section seperti "SINGLE CORE", "2 CORE", dll.
             if "Ukuran" in df_temp.columns:
                 df_temp = df_temp.dropna(subset=["Ukuran"])
                 df_temp["Ukuran"] = df_temp["Ukuran"].astype(str)
@@ -63,7 +67,6 @@ def load_all_sheets():
 
             all_data.append(df_temp)
         except Exception as e:
-            # Cetak error ke console untuk debugging jika ada tab yang gagal
             print(f"Catatan: Gagal memuat sheet '{sheet}': {e}")
 
     if all_data:
@@ -78,13 +81,13 @@ try:
 
     if df.empty:
         st.warning(
-            "⚠️ Belum ada data yang berhasil dimuat. Pastikan nama tab di Google Spreadsheet Anda sudah sesuai."
+            "⚠️ Belum ada data yang berhasil dimuat. Pastikan link Google Spreadsheet sudah diatur 'Anyone with the link can view'."
         )
     else:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # 1. Filter Kategori Produk Utama (Otomatis mendeteksi semua kategori unik dari data)
+        # 1. Filter Kategori Produk Utama
         if "Kategori Produk" in df.columns:
             kategori_list = ["Semua Kategori"] + list(
                 df["Kategori Produk"].dropna().unique()
@@ -95,7 +98,7 @@ try:
             if pilih_kategori != "Semua Kategori":
                 df = df[df["Kategori Produk"] == pilih_kategori]
 
-        # 2. Jika Kategori adalah KABEL, tampilkan sub-filter Spesifikasi Kabel & Jenis Kabel
+        # 2. Jika Kategori adalah KABEL, tampilkan sub-filter Spesifikasi Kabel
         if pilih_kategori == "Kabel":
             if "Tipe Kabel" in df.columns:
                 tipe_list = ["Semua Spesifikasi"] + list(
@@ -126,16 +129,8 @@ try:
                 pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
                 if pilih_brand != "Semua Brand":
                     df = df[df["Brand"] == pilih_brand]
-        
-        # Jika memilih "Semua Kategori", tampilkan opsi tambahan jika diperlukan
-        elif pilih_kategori == "Semua Kategori":
-            if "Brand" in df.columns and st.sidebar.checkbox("Filter Berdasarkan Brand"):
-                brand_list = ["Semua Brand"] + list(df["Brand"].dropna().unique())
-                pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
-                if pilih_brand != "Semua Brand":
-                    df = df[df["Brand"] == pilih_brand]
 
-        # 4. Filter Pencarian Bebas (Ukuran / Tipe / Spesifikasi)
+        # 4. Filter Pencarian Bebas
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi:", ""
         )
