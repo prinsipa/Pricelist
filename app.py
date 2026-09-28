@@ -14,7 +14,7 @@ st.write(
 )
 
 
-# Fungsi untuk mengambil dan merapikan data per sheet
+# Fungsi untuk mengambil dan merapikan data per sheet secara independen
 @st.cache_data(ttl=60)
 def load_all_sheets_dict():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
@@ -91,6 +91,9 @@ def load_all_sheets_dict():
 
             df_temp["Kategori Produk"] = kategori_nama
 
+            # 6. BERSIHKAN KOLOM KOSONG/NONE KHUSUS PADA SHEET INI SEBELUM DISIMPAN
+            df_temp = df_temp.loc[:, ~df_temp.isin(["None", "none", "nan", "NaN", ""]).all()]
+
             data_dict[sheet] = df_temp
         except Exception as e:
             print(f"Gagal memuat sheet '{sheet}': {e}")
@@ -104,16 +107,19 @@ try:
     if not data_dict:
         st.warning("⚠️ Belum ada data yang berhasil dimuat.")
     else:
-        all_dfs = list(data_dict.values())
-        df_combined = pd.concat(all_dfs, ignore_index=True)
-        df_combined.columns = df_combined.columns.str.strip()
+        # Gabungkan hanya sheet kabel untuk opsi Kabel
+        cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
+        df_cable_combined = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True) if cable_sheets else pd.DataFrame()
 
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        kategori_options = ["-- Pilih Kategori --"] + list(
-            df_combined["Kategori Produk"].dropna().unique()
-        )
+        # Ambil daftar kategori unik dari data_dict
+        kategori_keys = list(data_dict.keys())
+        # Kelompokkan nama sheet non-kabel
+        non_cable_cats = [s for s in kategori_keys if not ("cable" in s.lower() or "kabel" in s.lower())]
+        kategori_options = ["-- Pilih Kategori --", "Kabel"] + non_cable_cats
+        
         pilih_kategori = st.sidebar.selectbox(
             "Pilih Kategori Produk:", kategori_options
         )
@@ -124,8 +130,7 @@ try:
         if pilih_kategori != "-- Pilih Kategori --":
             filter_applied = True
             if pilih_kategori == "Kabel":
-                cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
-                df_active = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True)
+                df_active = df_cable_combined.copy()
             else:
                 df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
@@ -187,8 +192,9 @@ try:
         )
         if search_query.strip():
             filter_applied = True
+            # Jika user mengetik search tanpa pilih kategori, gabungkan semua sheet yang sudah bersih
             if pilih_kategori == "-- Pilih Kategori --":
-                df_active = df_combined.copy()
+                df_active = pd.concat(list(data_dict.values()), ignore_index=True)
             
             clean_search = re.sub(r'[^a-z0-9]', '', search_query.lower())
 
@@ -226,10 +232,10 @@ try:
                     if p_col in df_display.columns:
                         df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
-                # HAPUS KOLOM YANG SELURUH ISINYA 'None' ATAU '-' AGAR TABEL BERSIH SEMPURNA
+                # BUANG TOTAL KOLOM YANG BERISI NONE/KOSONG
                 df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN", "-", ""]).all()]
 
-                # Susun urutan kolom berdasarkan kategori produknya
+                # Susun urutan kolom secara presisi
                 if cat == "Kabel":
                     preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
                     existing_cols = [c for c in preferred_order if c in df_display.columns]
