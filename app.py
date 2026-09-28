@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="Pricelist Produk & Material", page_icon="⚡", layout="wide"
 )
 
-st.title("⚡ Cek Harga Pricelist Produk & Material")
+st.title("Pricelist Produk & Material")
 st.write(
     "Data harga diambil secara real-time dan otomatis dari Google Spreadsheet."
 )
