@@ -18,10 +18,6 @@ st.write(
 def load_all_sheets_dict():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
 
-    # =========================================================================
-    # DAFTAR SEMUA TAB / SHEET YANG ADA DI GOOGLE SPREADSHEET
-    # (Jika nanti menambah sheet baru, cukup masukkan nama tab-nya di sini)
-    # =========================================================================
     sheet_names = [
         "LV Cable (CU)",
         "LV Cable (AL)",
@@ -30,7 +26,7 @@ def load_all_sheets_dict():
         "Inverter",
         "Solar PV",
         "Mounting PV",
-        "Baterai",  # Tab baru yang baru saja Anda tambahkan
+        "Baterai",
     ]
     data_dict = {}
 
@@ -90,7 +86,7 @@ def load_all_sheets_dict():
                 kategori_nama = "Kabel"
                 df_temp["Tipe Kabel"] = sheet
             else:
-                kategori_nama = sheet  # Inverter, Solar PV, Mounting PV, Baterai, dll.
+                kategori_nama = sheet
 
             df_temp["Kategori Produk"] = kategori_nama
 
@@ -175,7 +171,6 @@ try:
                         filter_applied = True
 
             else:
-                # Untuk kategori non-kabel (Inverter, Solar PV, Mounting PV, Baterai, dll.)
                 if "Brand" in df_active.columns:
                     brand_list = ["Semua Brand"] + list(
                         df_active["Brand"].dropna().unique()
@@ -185,26 +180,29 @@ try:
                         df_active = df_active[df_active["Brand"] == pilih_brand]
                         filter_applied = True
 
-        # Filter Pencarian Bebas
+        # Filter Pencarian Bebas yang Super Fleksibel & Aman dari Error
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
         )
         if search_query.strip():
             filter_applied = True
-            if pilih_kategori == "-- Pilih Kategori --":
+            if pilih_kategori == "-- Pilih Kategori --" or df_active.empty:
                 df_active = df_combined.copy()
             
-            clean_query = search_query.lower().replace(" ", "")
+            # Pisahkan kata pencarian untuk mencocokkan secara fleksibel tanpa batasan koma/spasi
+            query_terms = search_query.lower().split()
 
             def match_row(row):
-                row_str = "".join(row.astype(str)).lower().replace(" ", "")
-                return clean_query in row_str
+                # Gabungkan seluruh kolom baris menjadi satu teks aman (mengatasi float/None)
+                row_str = " ".join([str(val) for val in row.values if pd.notna(val)]).lower()
+                # Pastikan semua kata kunci yang diketik user ada di dalam baris tersebut
+                return all(term in row_str for term in query_terms)
 
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
         # --- TAMPILAN HALAMAN UTAMA ---
-        if not filter_applied or pilih_kategori == "-- Pilih Kategori --":
-            st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian untuk melihat data pricelist.")
+        if not filter_applied or pilih_kategori == "-- Pilih Kategori --" and not search_query.strip():
+            st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian (contoh: *NYA 1.5* atau *Supreme*) untuk melihat data pricelist.")
         else:
             df_display = df_active.copy()
 
@@ -222,7 +220,7 @@ try:
                     df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
             # Urutkan kolom khusus kabel agar rapi
-            if pilih_kategori == "Kabel":
+            if pilih_kategori == "Kabel" or (pilih_kategori == "-- Pilih Kategori --" and search_query.strip()):
                 preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
                 existing_cols = [c for c in preferred_order if c in df_display.columns]
                 df_display = df_display[existing_cols]
