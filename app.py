@@ -55,12 +55,10 @@ def load_all_sheets_dict():
                 cleaned_rows = []
                 for idx, row in df_temp.iterrows():
                     val = str(row[first_col]).strip()
-                    # Tangkap baris pemisah core (termasuk SINGLE CORE)
                     if "CORE" in val.upper() or "core" in val:
                         current_core = val.upper()
                         continue
                     
-                    # Jika baris pertama sebelum core terdeteksi tapi belum ada core, set default ke "SINGLE CORE"
                     if current_core is None and idx < 5:
                         current_core = "SINGLE CORE"
 
@@ -111,74 +109,87 @@ try:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        kategori_list = ["Semua Kategori"] + list(
+        # Tambahkan opsi default kosong "-- Pilih Kategori --"
+        kategori_options = ["-- Pilih Kategori --"] + list(
             df_combined["Kategori Produk"].dropna().unique()
         )
         pilih_kategori = st.sidebar.selectbox(
-            "Pilih Kategori Produk:", kategori_list
+            "Pilih Kategori Produk:", kategori_options
         )
 
-        if pilih_kategori == "Semua Kategori":
-            df_active = df_combined.copy()
-        elif pilih_kategori == "Kabel":
-            cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
-            df_active = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True)
-        else:
-            df_active = data_dict.get(pilih_kategori, pd.DataFrame())
+        # Inisialisasi DataFrame aktif kosong di awal
+        df_active = pd.DataFrame()
+        filter_applied = False
 
-        # Filter Sub-Kategori / Brand di Sidebar
-        if pilih_kategori == "Kabel":
-            if "Tipe Kabel" in df_active.columns:
-                tipe_list = ["Semua Spesifikasi"] + list(
-                    df_active["Tipe Kabel"].dropna().unique()
-                )
-                pilih_tipe = st.sidebar.selectbox(
-                    "Pilih Spesifikasi Kabel:", tipe_list
-                )
-                if pilih_tipe != "Semua Spesifikasi":
-                    df_active = df_active[df_active["Tipe Kabel"] == pilih_tipe]
+        if pilih_kategori != "-- Pilih Kategori --":
+            filter_applied = True
+            if pilih_kategori == "Kabel":
+                cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
+                df_active = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True)
+            else:
+                df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
-            if "Kategori Core" in df_active.columns:
-                unique_cores = list(df_active["Kategori Core"].dropna().unique())
-                
-                def core_sort_key(val):
-                    if "SINGLE" in val.upper():
-                        return (0, val)
-                    return (1, val)
-                
-                unique_cores.sort(key=core_sort_key)
-                
-                core_list = ["Semua Core"] + unique_cores
-                pilih_core = st.sidebar.selectbox(
-                    "Pilih Jenis Core:", core_list
-                )
-                if pilih_core != "Semua Core":
-                    df_active = df_active[df_active["Kategori Core"] == pilih_core]
+            # Filter Sub-Kategori / Brand di Sidebar
+            if pilih_kategori == "Kabel":
+                if "Tipe Kabel" in df_active.columns:
+                    tipe_list = ["Semua Spesifikasi"] + list(
+                        df_active["Tipe Kabel"].dropna().unique()
+                    )
+                    pilih_tipe = st.sidebar.selectbox(
+                        "Pilih Spesifikasi Kabel:", tipe_list
+                    )
+                    if pilih_tipe != "Semua Spesifikasi":
+                        df_active = df_active[df_active["Tipe Kabel"] == pilih_tipe]
+                        filter_applied = True
 
-            if "Jenis Kabel" in df_active.columns:
-                jenis_list = ["Semua Jenis"] + list(
-                    df_active["Jenis Kabel"].dropna().unique()
-                )
-                pilih_jenis = st.sidebar.selectbox(
-                    "Pilih Jenis Kabel:", jenis_list
-                )
-                if pilih_jenis != "Semua Jenis":
-                    df_active = df_active[df_active["Jenis Kabel"] == pilih_jenis]
+                if "Kategori Core" in df_active.columns:
+                    unique_cores = list(df_active["Kategori Core"].dropna().unique())
+                    
+                    def core_sort_key(val):
+                        if "SINGLE" in val.upper():
+                            return (0, val)
+                        return (1, val)
+                    
+                    unique_cores.sort(key=core_sort_key)
+                    
+                    core_list = ["Semua Core"] + unique_cores
+                    pilih_core = st.sidebar.selectbox(
+                        "Pilih Jenis Core:", core_list
+                    )
+                    if pilih_core != "Semua Core":
+                        df_active = df_active[df_active["Kategori Core"] == pilih_core]
+                        filter_applied = True
 
-        elif pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
-            if "Brand" in df_active.columns:
-                brand_list = ["Semua Brand"] + list(
-                    df_active["Brand"].dropna().unique()
-                )
-                pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
-                if pilih_brand != "Semua Brand":
-                    df_active = df_active[df_active["Brand"] == pilih_brand]
+                if "Jenis Kabel" in df_active.columns:
+                    jenis_list = ["Semua Jenis"] + list(
+                        df_active["Jenis Kabel"].dropna().unique()
+                    )
+                    pilih_jenis = st.sidebar.selectbox(
+                        "Pilih Jenis Kabel:", jenis_list
+                    )
+                    if pilih_jenis != "Semua Jenis":
+                        df_active = df_active[df_active["Jenis Kabel"] == pilih_jenis]
+                        filter_applied = True
+
+            elif pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
+                if "Brand" in df_active.columns:
+                    brand_list = ["Semua Brand"] + list(
+                        df_active["Brand"].dropna().unique()
+                    )
+                    pilih_brand = st.sidebar.selectbox("Pilih Brand:", brand_list)
+                    if pilih_brand != "Semua Brand":
+                        df_active = df_active[df_active["Brand"] == pilih_brand]
+                        filter_applied = True
 
         # Filter Pencarian Bebas
         search_query = st.sidebar.text_input(
             "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
         )
-        if search_query:
+        if search_query.strip():
+            filter_applied = True
+            if pilih_kategori == "-- Pilih Kategori --":
+                df_active = df_combined.copy()
+            
             clean_query = search_query.lower().replace(" ", "")
 
             def match_row(row):
@@ -187,30 +198,35 @@ try:
 
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
-        # --- BERSIHKAN TAMPILAN TABEL MUTLAK ---
-        df_display = df_active.copy()
+        # --- TAMPILAN HALAMAN UTAMA ---
+        if not filter_applied or pilih_kategori == "-- Pilih Kategori --":
+            # Jika belum memilih kategori atau melakukan pencarian, tampilkan petunjuk
+            st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian untuk melihat data pricelist.")
+        else:
+            # --- BERSIHKAN TAMPILAN TABEL MUTLAK ---
+            df_display = df_active.copy()
 
-        cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
-        for col in cols_to_drop:
-            if col in df_display.columns:
-                df_display = df_display.drop(columns=[col])
+            cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
+            for col in cols_to_drop:
+                if col in df_display.columns:
+                    df_display = df_display.drop(columns=[col])
 
-        df_display = df_display.loc[:, ~df_display.columns.duplicated()]
+            df_display = df_display.loc[:, ~df_display.columns.duplicated()]
 
-        # Bersihkan nilai sel harga yang kosong menjadi tanda strip "-"
-        price_cols = ["Harga per Meter (Rp)", "Harga"]
-        for p_col in price_cols:
-            if p_col in df_display.columns:
-                df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
+            # Bersihkan nilai sel harga yang kosong menjadi tanda strip "-"
+            price_cols = ["Harga per Meter (Rp)", "Harga"]
+            for p_col in price_cols:
+                if p_col in df_display.columns:
+                    df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
-        # Jika kategori Kabel aktif, buang kolom asing seperti 'Kapasitas' atau 'Harga' non-kabel agar tabel bersih
-        if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
-            preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
-            existing_cols = [c for c in preferred_order if c in df_display.columns]
-            df_display = df_display[existing_cols]
+            # Urutkan kolom khusus kabel agar rapi
+            if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
+                preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
+                existing_cols = [c for c in preferred_order if c in df_display.columns]
+                df_display = df_display[existing_cols]
 
-        st.info(f"Menampilkan jumlah produk: {len(df_display)}")
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
+            st.info(f"Menampilkan jumlah produk: {len(df_display)}")
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
 
     if st.button("🔄 Muat Ulang Data"):
         st.cache_data.clear()
