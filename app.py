@@ -43,7 +43,7 @@ def load_all_sheets_dict():
             if df_temp.empty:
                 continue
 
-            # Bersihkan baris teks pemisah section seperti "SINGLE CORE"
+            # Bersihkan baris teks pemisah section seperti "SINGLE CORE", "2 CORE", dll.
             if "Ukuran" in df_temp.columns:
                 df_temp = df_temp.dropna(subset=["Ukuran"])
                 df_temp["Ukuran"] = df_temp["Ukuran"].astype(str)
@@ -75,7 +75,7 @@ try:
     if not data_dict:
         st.warning("⚠️ Belum ada data yang berhasil dimuat.")
     else:
-        # Gabungkan semua data untuk list dropdown filter
+        # Gabungkan semua data untuk list dropdown filter utama
         all_dfs = list(data_dict.values())
         df_combined = pd.concat(all_dfs, ignore_index=True)
 
@@ -97,7 +97,6 @@ try:
             cable_sheets = [s for s in data_dict.keys() if "cable" in s.lower() or "kabel" in s.lower()]
             df_active = pd.concat([data_dict[s] for s in cable_sheets if s in data_dict], ignore_index=True)
         else:
-            # Untuk Inverter, Solar PV, Mounting PV
             df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
         # 2. Filter Sub-Kategori / Brand
@@ -144,18 +143,18 @@ try:
 
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
-        # --- BERSIHKAN KOLOM TAMPILAN ---
-        # Hapus kolom "Kategori Produk" agar tidak berulang
-        if "Kategori Produk" in df_active.columns:
-            df_display = df_active.drop(columns=["Kategori Produk"])
-        else:
-            df_display = df_active.copy()
+        # --- PENGATURAN TAMPILAN TABEL YANG AMAN ---
+        df_display = df_active.copy()
 
-        # Buang kolom yang seluruh isinya kosong atau bernilai NaN / 'None'
-        df_display = df_display.dropna(how="all", axis=1)
-        df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN"]).all()]
+        # Hapus kolom "Kategori Produk" agar tidak berulang-ulang di tabel
+        if "Kategori Produk" in df_display.columns:
+            df_display = df_display.drop(columns=["Kategori Produk"])
 
-        # Menampilkan informasi jumlah data dan tabel interaktif yang bersih tanpa kolom kosong
+        # Khusus untuk Kabel: Pastikan kolom Harga per Meter (Rp) aman dan tidak ikut terhapus
+        # Kita hanya membuang kolom yang namanya benar-benar kosong atau 'Unnamed'
+        df_display = df_display.loc[:, ~df_display.columns.str.contains("^Unnamed")]
+
+        # Menampilkan informasi jumlah data dan tabel interaktif
         st.info(f"Menampilkan {len(df_display)} data produk.")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
