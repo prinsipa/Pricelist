@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="Pricelist Produk & Material", page_icon="logo.png", layout="wide"
 )
 
-st.title("Pricelist Produk & Material")
+st.title("⚡ Cek Harga Pricelist Produk & Material")
 st.write(
     "Data harga diambil secara real-time dan otomatis dari Google Spreadsheet."
 )
@@ -51,7 +51,7 @@ def load_all_sheets_dict():
             if is_cable and len(df_temp.columns) > 0:
                 first_col = df_temp.columns[0]
                 
-                current_core = None  # Abaikan baris di atas core pertama
+                current_core = None
                 cleaned_rows = []
                 for idx, row in df_temp.iterrows():
                     val = str(row[first_col]).strip()
@@ -171,7 +171,7 @@ try:
 
         # Filter Pencarian Bebas
         search_query = st.sidebar.text_input(
-            "Cari Ukuran / Tipe / Spesifikasi / Brand:", ""
+            "Cari Ukuran / Tipe / Spesifikasi / Brand / Jenis (cth: NYA):", ""
         )
         if search_query:
             clean_query = search_query.lower().replace(" ", "")
@@ -192,7 +192,7 @@ try:
 
         df_display = df_display.loc[:, ~df_display.columns.duplicated()]
 
-        # Pastikan kolom Harga per Meter (Rp) atau Harga tidak hilang dan ubah nilai NaN menjadi "-" agar bersih
+        # Ubah nilai harga yang kosong menjadi tanda strip "-" agar rapi
         price_cols = ["Harga per Meter (Rp)", "Harga"]
         for p_col in price_cols:
             if p_col in df_display.columns:
