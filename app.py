@@ -203,7 +203,6 @@ try:
         if not filter_applied or (pilih_kategori == "-- Pilih Kategori --" and not search_query.strip()):
             st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian untuk melihat data pricelist.")
         else:
-            # Jika pencarian mencakup berbagai kategori, tampilkan per kelompok kategori agar format tabelnya sesuai aslinya
             categories_to_display = df_active["Kategori Produk"].dropna().unique()
 
             for cat in categories_to_display:
@@ -227,13 +226,15 @@ try:
                     if p_col in df_display.columns:
                         df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
-                # Format kolom khusus berdasarkan jenis produknya
+                # HAPUS KOLOM YANG SELURUH ISINYA 'None' ATAU '-' AGAR TABEL BERSIH SEMPURNA
+                df_display = df_display.loc[:, ~df_display.isin(["None", "none", "nan", "NaN", "-", ""]).all()]
+
+                # Susun urutan kolom berdasarkan kategori produknya
                 if cat == "Kabel":
                     preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
                     existing_cols = [c for c in preferred_order if c in df_display.columns]
                     df_display = df_display[existing_cols]
-                elif cat in ["Inverter", "Solar PV", "Mounting PV", "Baterai"]:
-                    # Pastikan kolom format asli non-kabel tampil rapi
+                else:
                     preferred_order = ["Kapasitas", "Brand", "Spesifikasi", "Harga"]
                     existing_cols = [c for c in preferred_order if c in df_display.columns]
                     other_cols = [c for c in df_display.columns if c not in existing_cols]
