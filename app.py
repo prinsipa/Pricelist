@@ -13,7 +13,7 @@ st.write(
 )
 
 
-# Fungsi untuk mengambil data dari semua sheet secara terpisah ke dalam dictionary
+# Fungsi untuk mengambil dan merapikan data per sheet secara independen
 @st.cache_data(ttl=60)
 def load_all_sheets_dict():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
@@ -35,15 +35,14 @@ def load_all_sheets_dict():
             url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={encoded_sheet}"
             df_temp = pd.read_csv(url)
 
-            # Buang kolom kosong / Unnamed
-            df_temp = df_temp.loc[
-                :, ~df_temp.columns.str.contains("^Unnamed")
-            ]
+            # 1. Buang kolom kosong atau Unnamed
+            df_temp = df_temp.loc[:, ~df_temp.columns.str.contains("^Unnamed")]
 
             if df_temp.empty:
                 continue
 
-            # Bersihkan baris teks pemisah section seperti "SINGLE CORE", "2 CORE", dll.
+            # 2. Tangani baris pertama jika terbaca sebagai baris kosong atau pemisah section (misal: SINGLE CORE)
+            # Pastikan kolom pertama (Ukuran) tidak berisi kata "CORE"
             if "Ukuran" in df_temp.columns:
                 df_temp = df_temp.dropna(subset=["Ukuran"])
                 df_temp["Ukuran"] = df_temp["Ukuran"].astype(str)
@@ -51,7 +50,10 @@ def load_all_sheets_dict():
                     ~df_temp["Ukuran"].str.contains("CORE|Core|core", case=False, na=False)
                 ]
 
-            # Tentukan Kategori Utama
+            # 3. Buang baris yang seluruh kolomnya berisi NaN / kosong
+            df_temp = df_temp.dropna(how="all")
+
+            # 4. Tambahkan informasi kategori berdasarkan nama tab
             sheet_lower = sheet.lower()
             if "cable" in sheet_lower or "kabel" in sheet_lower:
                 kategori_nama = "Kabel"
@@ -60,8 +62,8 @@ def load_all_sheets_dict():
                 kategori_nama = sheet  # Inverter, Solar PV, Mounting PV
 
             df_temp.insert(0, "Kategori Produk", kategori_nama)
-            
-            # Simpan per sheet ke dictionary
+
+            # Simpan dataframe bersih ke dictionary
             data_dict[sheet] = df_temp
         except Exception as e:
             print(f"Gagal memuat sheet '{sheet}': {e}")
@@ -75,7 +77,7 @@ try:
     if not data_dict:
         st.warning("⚠️ Belum ada data yang berhasil dimuat.")
     else:
-        # Gabungkan semua data untuk list dropdown filter utama
+        # Gabungkan semua data untuk filter utama
         all_dfs = list(data_dict.values())
         df_combined = pd.concat(all_dfs, ignore_index=True)
 
@@ -99,7 +101,7 @@ try:
         else:
             df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
-        # 2. Filter Sub-Kategori / Brand
+        # 2. Filter Sub-Kategori / Brand di Sidebar
         if pilih_kategori == "Kabel":
             if "Tipe Kabel" in df_active.columns:
                 tipe_list = ["Semua Spesifikasi"] + list(
@@ -143,19 +145,22 @@ try:
 
             df_active = df_active[df_active.apply(match_row, axis=1)]
 
-        # --- PENGATURAN TAMPILAN TABEL YANG AMAN ---
+        # --- PENGATURAN TAMPILAN TABEL YANG BERSIH ---
         df_display = df_active.copy()
 
-        # Hapus kolom "Kategori Produk" agar tidak berulang-ulang di tabel
+        # Hapus kolom "Kategori Produk" agar tidak berulang di dalam tabel
         if "Kategori Produk" in df_display.columns:
             df_display = df_display.drop(columns=["Kategori Produk"])
 
-        # Khusus untuk Kabel: Pastikan kolom Harga per Meter (Rp) aman dan tidak ikut terhapus
-        # Kita hanya membuang kolom yang namanya benar-benar kosong atau 'Unnamed'
-        df_display = df_display.loc[:, ~df_display.columns.str.contains("^Unnamed")]
+        # Buang kolom duplikat jika sempat terbawa saat concat
+        df_display = df_display.loc[:, ~df_display.columns.duplicated()]
+
+        # Jika kategori Kabel yang aktif, pastikan kolom Harga per Meter muncul dengan benar
+        # Hapus kolom yang bernilai NaN total khusus untuk baris yang sedang ditampilkan
+        df_display = df_display.dropna(how="all", axis=1)
 
         # Menampilkan informasi jumlah data dan tabel interaktif
-        st.info(f"Menampilkan {len(df_display)} data produk.")
+        st.info(f"Menampilkan jumlah produk: {len(df_display)}")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
     # Tombol Refresh Manual
