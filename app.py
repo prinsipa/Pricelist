@@ -18,6 +18,10 @@ st.write(
 def load_all_sheets_dict():
     spreadsheet_id = "1b4NV7g90Aj8eMS6M4OwLuvzOb273_LOjctKMEqZg3k4"
 
+    # =========================================================================
+    # DAFTAR SEMUA TAB / SHEET YANG ADA DI GOOGLE SPREADSHEET
+    # (Jika nanti menambah sheet baru, cukup masukkan nama tab-nya di sini)
+    # =========================================================================
     sheet_names = [
         "LV Cable (CU)",
         "LV Cable (AL)",
@@ -26,6 +30,7 @@ def load_all_sheets_dict():
         "Inverter",
         "Solar PV",
         "Mounting PV",
+        "Baterai",  # Tab baru yang baru saja Anda tambahkan
     ]
     data_dict = {}
 
@@ -85,7 +90,7 @@ def load_all_sheets_dict():
                 kategori_nama = "Kabel"
                 df_temp["Tipe Kabel"] = sheet
             else:
-                kategori_nama = sheet
+                kategori_nama = sheet  # Inverter, Solar PV, Mounting PV, Baterai, dll.
 
             df_temp["Kategori Produk"] = kategori_nama
 
@@ -109,7 +114,6 @@ try:
         # Sidebar Filter Pencarian Produk
         st.sidebar.header("🔍 Filter Pencarian Produk")
 
-        # Tambahkan opsi default kosong "-- Pilih Kategori --"
         kategori_options = ["-- Pilih Kategori --"] + list(
             df_combined["Kategori Produk"].dropna().unique()
         )
@@ -117,7 +121,6 @@ try:
             "Pilih Kategori Produk:", kategori_options
         )
 
-        # Inisialisasi DataFrame aktif kosong di awal
         df_active = pd.DataFrame()
         filter_applied = False
 
@@ -129,7 +132,7 @@ try:
             else:
                 df_active = data_dict.get(pilih_kategori, pd.DataFrame())
 
-            # Filter Sub-Kategori / Brand di Sidebar
+            # Filter Sub-Kategori / Brand / Spesifikasi di Sidebar
             if pilih_kategori == "Kabel":
                 if "Tipe Kabel" in df_active.columns:
                     tipe_list = ["Semua Spesifikasi"] + list(
@@ -171,7 +174,8 @@ try:
                         df_active = df_active[df_active["Jenis Kabel"] == pilih_jenis]
                         filter_applied = True
 
-            elif pilih_kategori in ["Inverter", "Solar PV", "Mounting PV"]:
+            else:
+                # Untuk kategori non-kabel (Inverter, Solar PV, Mounting PV, Baterai, dll.)
                 if "Brand" in df_active.columns:
                     brand_list = ["Semua Brand"] + list(
                         df_active["Brand"].dropna().unique()
@@ -200,10 +204,8 @@ try:
 
         # --- TAMPILAN HALAMAN UTAMA ---
         if not filter_applied or pilih_kategori == "-- Pilih Kategori --":
-            # Jika belum memilih kategori atau melakukan pencarian, tampilkan petunjuk
             st.info("👋 Silakan pilih **Kategori Produk** di sidebar sebelah kiri atau ketik kata kunci pencarian untuk melihat data pricelist.")
         else:
-            # --- BERSIHKAN TAMPILAN TABEL MUTLAK ---
             df_display = df_active.copy()
 
             cols_to_drop = ["Kategori Produk", "Tipe Kabel"]
@@ -220,7 +222,7 @@ try:
                     df_display[p_col] = df_display[p_col].fillna("-").replace(["None", "none", "nan", "NaN", ""], "-")
 
             # Urutkan kolom khusus kabel agar rapi
-            if pilih_kategori == "Kabel" or pilih_kategori == "Semua Kategori":
+            if pilih_kategori == "Kabel":
                 preferred_order = ["Ukuran", "Kategori Core", "Jenis Kabel", "Brand", "Spesifikasi", "Harga per Meter (Rp)"]
                 existing_cols = [c for c in preferred_order if c in df_display.columns]
                 df_display = df_display[existing_cols]
