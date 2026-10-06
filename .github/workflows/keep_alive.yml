@@ -1,0 +1,16 @@
+name: Wake Up Streamlit App
+
+on:
+  schedule:
+    # Mengatur agar aksi dijalankan setiap 4 jam sekali
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # Memungkinkan Anda menjalankan secara manual dari tab Actions
+
+jobs:
+  ping-streamlit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit URL
+        run: |
+          # Melakukan request HTTP ke URL web Streamlit Anda
+          curl -I https://prinsipa-pricelist.streamlit.app/
