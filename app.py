@@ -5,7 +5,7 @@ import streamlit as st
 
 # Konfigurasi Tampilan Web
 st.set_page_config(
-    page_title="Pricelist Produk & Material", page_icon="logo.png", layout="wide"
+    page_title="Pricelist Product & Material", page_icon="logo.png", layout="wide"
 )
 
 st.title("Pricelist Produk & Material")
