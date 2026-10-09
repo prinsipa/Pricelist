@@ -28,6 +28,7 @@ def load_all_sheets_dict():
         "Solar PV",
         "Mounting PV",
         "Baterai",
+        "Transformer",
     ]
     data_dict = {}
 
