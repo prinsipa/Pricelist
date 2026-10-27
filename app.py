@@ -24,6 +24,7 @@ def load_all_sheets_dict():
         "LV Cable (AL)",
         "MV Cable (CU)",
         "MV Cable (AL)",
+        "DC Cable",
         "Inverter",
         "Solar PV",
         "Mounting PV",
